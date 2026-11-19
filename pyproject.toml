@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "phone-agent"
+version = "0.1.0"
+description = "Fine-tune and evaluate Muse Glimmer 30B as an Android phone agent"
+requires-python = ">=3.11"
+dependencies = ["pillow>=10"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
