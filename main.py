@@ -3,6 +3,7 @@
 Usage:
     python main.py check       read-only setup checks (never prints secrets)
     python main.py sessions    read-only list of open Fireworks training sessions/jobs
+    python main.py convert steps|sft ...   build data from AndroidControl (see phone_agent/convert.py)
 """
 
 import sys
@@ -25,8 +26,12 @@ def _in_project_env() -> bool:
 
 
 def main(argv: list[str]) -> int:
-    if argv[:1] in (["check"], ["sessions"]) and not _in_project_env():
+    if argv[:1] in (["check"], ["sessions"], ["convert"]) and not _in_project_env():
         return 1
+    if argv[:1] == ["convert"]:
+        from phone_agent import convert
+
+        return convert.main(argv[1:])
     if argv[:1] == ["check"]:
         from phone_agent import env_check
 

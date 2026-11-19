@@ -7,8 +7,11 @@ Coordinates use Muse Glimmer's native normalized scale: 0-1000 across (x) and
 0-1000 down (y), relative to the screenshot. Labels therefore don't change when
 screenshots are resized, and to_pixels() maps them onto any screen size.
 
-Draft: confirm against AndroidControl on day 1 (scroll-direction meaning,
-whether each demo's final screen exists for a "done" label).
+Checked against AndroidControl (2026-11-19):
+- scroll "down" means "show what is further down" (the finger swipes up), and the
+  same for the other directions. The free-text step notes sometimes say the opposite;
+  the action labels are consistent.
+- every demo keeps its final screen, so "done" rows come from the end of each demo.
 """
 
 from __future__ import annotations
