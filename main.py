@@ -1,7 +1,8 @@
 """Project entry point.
 
 Usage:
-    python main.py check    read-only setup checks (never prints secrets)
+    python main.py check       read-only setup checks (never prints secrets)
+    python main.py sessions    read-only list of open Fireworks training sessions/jobs
 """
 
 import sys
@@ -12,6 +13,10 @@ def main(argv: list[str]) -> int:
         from phone_agent import env_check
 
         return env_check.main()
+    if argv[:1] == ["sessions"]:
+        from phone_agent import fireworks_status
+
+        return fireworks_status.main()
     print(__doc__)
     return 2
 
