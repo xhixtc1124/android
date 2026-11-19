@@ -7,8 +7,26 @@ Usage:
 
 import sys
 
+VENV_PYTHON = "vendor/cookbook/training/.venv/bin/python"
+
+
+def _in_project_env() -> bool:
+    """True if this Python can see the project package; otherwise explain the fix."""
+    try:
+        import phone_agent  # noqa: F401
+        return True
+    except ModuleNotFoundError:
+        print(
+            f"This Python ({sys.executable}) is not the project's environment.\n"
+            f"Terminal: run  source scripts/env.sh  then try again.\n"
+            f"VS Code:  Cmd+Shift+P > 'Python: Select Interpreter' > {VENV_PYTHON}"
+        )
+        return False
+
 
 def main(argv: list[str]) -> int:
+    if argv[:1] in (["check"], ["sessions"]) and not _in_project_env():
+        return 1
     if argv[:1] == ["check"]:
         from phone_agent import env_check
 
