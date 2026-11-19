@@ -1,0 +1,51 @@
+# Secrets: never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# Fireworks run manifests, training logs, checkpoint references
+runs/
+sft_logs/
+muse_starter_logs/
+*manifest*.json
+*manifest*.yaml
+*manifest*.yml
+*.log
+
+# Downloaded datasets and converted rows
+data/
+
+# Model weights, adapters, quantized files
+models/
+*.safetensors
+*.gguf
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.onnx
+
+# Vendored Fireworks cookbook (recreated by scripts/setup_cookbook.sh)
+vendor/
+
+# Emulator / AndroidWorld outputs and screen recordings
+recordings/
+*.mp4
+*.mov
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
