@@ -12,12 +12,22 @@ Trials (small, run before the full job):
            the full-run time estimate, and checks that a checkpoint save works.
 
 Both trials close their training session on exit (frees the account's one Glimmer
-slot) and save nothing to the account. Everything goes to runs/<trial>-<time>/
-(gitignored): the rows used, settings.json, train.log, metrics.jsonl, summary.json.
+slot) and save nothing to the account.
 
-Usage (the training loop runs on this Mac: keep it awake and plugged in):
+Full run:
+  full     all 88,308 train rows, one pass (about 2,760 steps, 6-9 hours). Checkpoints
+           every 30 minutes; keeps its session open on exit so a crash can resume; saves
+           the final adapter to the account as model glimmer-android-sft-<time>.
+
+Everything goes to runs/<name>-<time>/ (gitignored): settings.json, train.log,
+metrics.jsonl, summary.json (and the rows used, for trials).
+
+Usage (the training loop runs on this Mac: keep it awake, plugged in, lid open):
     caffeinate -is python main.py train overfit
     caffeinate -is python main.py train speed
+    caffeinate -is python main.py train full
+    # after a crash, right away (the session expires soon after its run stops):
+    caffeinate -is python main.py train full --run-dir runs/full-<time> --resume-from <ref>
 """
 
 from __future__ import annotations
@@ -50,12 +60,14 @@ FULL_TRAIN_ROWS = 88_308
 @dataclass(frozen=True)
 class Trial:
     rows: int
-    pick: str  # "diverse" (every action type) or "random"
+    pick: str  # "diverse" (every action type), "random", or "all" (the full sft/train.jsonl)
     epochs: int
     batch_size: int
     schedule: dict
     save_checkpoint: bool
     render_workers: int
+    close_session: bool = True  # free the account's slot on exit (also on a crash: no resume)
+    promote: bool = False  # save the final adapter to the account as a model
     lora_rank: int = 16
     lora_alpha: int = 32
     learning_rate: float = 1e-4
@@ -71,6 +83,12 @@ TRIALS = {
                      schedule={"type": "constant"}, save_checkpoint=False, render_workers=2),
     "speed": Trial(rows=1000, pick="random", epochs=1, batch_size=32,
                    schedule=FULL_SCHEDULE, save_checkpoint=True, render_workers=4),
+    # The real run. Keeps its session open on exit so a crash can resume from the last
+    # 30-minute checkpoint, and promotes the final adapter: a session's checkpoints stop
+    # loading soon after its run stops, but a promoted model stays in the account.
+    "full": Trial(rows=FULL_TRAIN_ROWS, pick="all", epochs=1, batch_size=32,
+                  schedule=FULL_SCHEDULE, save_checkpoint=True, render_workers=4,
+                  close_session=False, promote=True),
 }
 OVERFIT_PASS_LOSS = 0.1
 
@@ -97,7 +115,25 @@ def write_rows(steps: list[dict], path: Path) -> None:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
-def build_config(trial: Trial, run_dir: Path, dataset: Path):
+def full_dataset() -> Path:
+    """The full training file (rows with embedded screenshots, ~13 GB); built once."""
+    from phone_agent import convert
+    from phone_agent.prompt import DEFAULT_MAX_HISTORY
+
+    path = DATA_DIR / "sft" / "train.jsonl"
+    if not path.exists():
+        print(f"building {path.relative_to(ROOT)} (one-time, a few minutes)...", flush=True)
+        convert.build_sft(DATA_DIR, "train", include_done=True, limit=None,
+                          max_history=DEFAULT_MAX_HISTORY, use_step_instruction=False)
+    with open(path, "rb") as f:
+        n = sum(1 for _ in f)
+    if n != FULL_TRAIN_ROWS:
+        raise SystemExit(f"{path} has {n} rows, expected {FULL_TRAIN_ROWS}; delete it and rerun to rebuild.")
+    return path
+
+
+def build_config(trial: Trial, run_dir: Path, dataset: Path, output_model_id: str | None = None,
+                 resume_from: str | None = None):
     import training.recipes.sft_loop as sft_loop
     from fireworks.training.sdk.training_spec import parse_lr_scheduler_spec
     from training.utils import WandBConfig
@@ -105,7 +141,8 @@ def build_config(trial: Trial, run_dir: Path, dataset: Path):
 
     return sft_loop.Config(
         serverless=True,
-        close_session_on_exit=True,  # trials only: free the slot, nothing needs these checkpoints
+        close_session_on_exit=trial.close_session,
+        init_from_checkpoint=resume_from,
         log_path=str(run_dir / "logs"),
         base_model=BASE_MODEL,
         tokenizer_model=TOKENIZER_MODEL,
@@ -125,7 +162,7 @@ def build_config(trial: Trial, run_dir: Path, dataset: Path):
         save_final_checkpoint=trial.save_checkpoint,
         dcp_save_interval=None if trial.save_checkpoint else 0,
         checkpoint_interval_minutes=None if trial.save_checkpoint else 0,
-        output_model_id=None,  # never promote a trial
+        output_model_id=output_model_id if trial.promote else None,
         generation_eval=False,  # sampling is paid
         render_workers=trial.render_workers,
         wandb=WandBConfig(entity=None),
@@ -164,6 +201,10 @@ def summarize(run_dir: Path, trial_name: str, trial: Trial, wall_s: float) -> di
     per_epoch = -(-trial.rows // trial.batch_size)
     epoch_means = [round(statistics.mean(losses[i : i + per_epoch]), 4) for i in range(0, len(losses), per_epoch)]
     out.update(first_loss=round(losses[0], 4), last_loss=round(losses[-1], 4), epoch_mean_loss=epoch_means)
+    if len(losses) >= 100:  # long runs: the loss curve in ten equal slices
+        tenth = len(losses) / 10
+        out["loss_by_tenth"] = [round(statistics.mean(losses[int(i * tenth) : int((i + 1) * tenth)]), 4)
+                                for i in range(10)]
     if len(time_at) >= 2:
         # From step 1 to the last step: excludes start-up, includes the shared pool's ups and downs.
         first, last = min(time_at), max(time_at)
@@ -180,7 +221,11 @@ def summarize(run_dir: Path, trial_name: str, trial: Trial, wall_s: float) -> di
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python main.py train")
     parser.add_argument("trial", choices=sorted(TRIALS))
+    parser.add_argument("--resume-from", help="'<account>/run-<id>/step-<N>' printed by the interrupted run")
+    parser.add_argument("--run-dir", type=Path, help="the interrupted run's folder (keeps its step + data position)")
     args = parser.parse_args(argv)
+    if bool(args.resume_from) != bool(args.run_dir):
+        parser.error("--resume-from and --run-dir go together")
     trial = TRIALS[args.trial]
     check_free(trial)
     if not os.environ.get("FIREWORKS_API_KEY"):
@@ -188,31 +233,43 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     from phone_agent import fireworks_status
 
-    if fireworks_status.main() != 0:
+    open_check = fireworks_status.main()
+    if open_check != 0 and not args.resume_from:
         print("Not launching: an open session or job exists (or the check failed).")
         return 3
 
-    run_dir = RUNS_DIR / f"{args.trial}-{time.strftime('%Y%m%d-%H%M%S')}"
-    run_dir.mkdir(parents=True)
-    with open(DATA_DIR / "steps" / "train.jsonl") as f:
-        records = [json.loads(line) for line in f]
-    chosen = select_rows(records, trial)
-    dataset = run_dir / "train.jsonl"
-    write_rows(chosen, dataset)
-    (run_dir / "row_ids.json").write_text(json.dumps([s["id"] for s in chosen]))
-    (run_dir / "settings.json").write_text(json.dumps({"trial": args.trial, **trial.__dict__}, indent=2))
+    if args.run_dir:  # resume: same folder, same data file, same model name
+        run_dir = args.run_dir
+        settings = json.loads((run_dir / "settings.json").read_text())
+        dataset = Path(settings["dataset"])
+    else:
+        run_dir = RUNS_DIR / f"{args.trial}-{time.strftime('%Y%m%d-%H%M%S')}"
+        run_dir.mkdir(parents=True)
+        if trial.pick == "all":
+            dataset = full_dataset()
+        else:
+            with open(DATA_DIR / "steps" / "train.jsonl") as f:
+                records = [json.loads(line) for line in f]
+            chosen = select_rows(records, trial)
+            dataset = run_dir / "train.jsonl"
+            write_rows(chosen, dataset)
+            (run_dir / "row_ids.json").write_text(json.dumps([s["id"] for s in chosen]))
+        model_id = f"glimmer-android-sft-{time.strftime('%Y%m%d-%H%M')}" if trial.promote else None
+        settings = {"trial": args.trial, **trial.__dict__, "dataset": str(dataset), "output_model_id": model_id}
+        (run_dir / "settings.json").write_text(json.dumps(settings, indent=2))
 
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
         handlers=[logging.FileHandler(run_dir / "train.log"), logging.StreamHandler(sys.stdout)],
     )
-    print(f"run folder: {run_dir.relative_to(ROOT)}  rows: {len(chosen)}", flush=True)
+    print(f"run folder: {run_dir.relative_to(ROOT)}  rows: {trial.rows}  "
+          f"model name: {settings['output_model_id']}  resume: {args.resume_from}", flush=True)
 
     import training.recipes.sft_loop as sft_loop
 
     started = time.monotonic()
-    result = sft_loop.main(build_config(trial, run_dir, dataset))
+    result = sft_loop.main(build_config(trial, run_dir, dataset, settings["output_model_id"], args.resume_from))
     summary = summarize(run_dir, args.trial, trial, time.monotonic() - started)
     summary["optimizer_steps_reported"] = result.get("steps")
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2))
