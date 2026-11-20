@@ -125,18 +125,31 @@ Started at 14:08 on 2026-11-20 with `python main.py train full`, kept awake with
 
 - **Data:** all 88,308 train rows, one pass, 2,760 steps of 32 rows. The training file (`sft/train.jsonl`, 10.9 GB, screenshots embedded) took 46 seconds to build.
 - **Settings:** as in the training plan above.
-- **Checkpoints:** every 30 minutes, so a crash can resume from the last one.
+- **Checkpoints:** every 30 minutes, or every 1/20 of the estimated run time if that is longer, so a crash can resume from the last one. The session stays open when the script exits so a resume is possible, but only right away: the session expires soon after its run stops.
 - **Saving the result:** the final adapter is saved to the account as model `glimmer-android-sft-20261120-1408`.
   - **Why:** a training session's checkpoints stop loading soon after its run ends, but a saved model stays.
   - **Consequence:** the paid test can run later on a rented full-precision GPU instead of having to happen inside the session.
 
-Result: *in progress* (step 1 loss 1.28)
+Progress so far:
+
+| Time | Step | Loss | Pace |
+|---|---|---|---|
+| 14:10 | 1 | 1.28 | |
+| 14:39 | 41 | 0.31 | about 45 s per step |
+| 15:09 | 99 | 0.18 | about 31 s per step |
+| 15:37 | 138 | 0.21 | about 43 s per step; first checkpoint saved (60 s resumable copy + 72 s testable copy) |
+
+- **Slower than the speed test.** Steps take 30–45 seconds, against 8 in the speed test an hour earlier.
+  - **Cause:** Fireworks' shared training machines. The Mac was 85% idle, the training processes sat at 0% CPU waiting for replies, upload was near zero between steps, and there were no retry or capacity errors.
+  - **Effect:** at this pace the run takes about 24–33 hours instead of 6–9. It is still free, because the offer counts the start date.
+- **Mac memory:** swap is nearly full (about 13 of 14 GB), mostly from browser and editor windows open for days. The training processes use about 0.2 GB.
+
+Result: *in progress*
 
 ## Where things stand (2026-11-20)
 
 - Both free trials passed. The setup is ready for the full run.
 - **Training tokens used by the trials:** about 2.5 million, all free. **Money spent:** $0.
-- **The full training run started at 14:08** (about 6–9 hours, free).
-  - Unlike the trials, it must **keep its session open** at the end. The tuned model can only be tested while its session is open.
-  - So the paid offline test should follow right after. That test needs its own cost estimate and approval first.
-  - The Mac has to stay awake and plugged in for the whole run.
+- **The full training run started at 14:08.** It's free, and slower than planned because the shared machines are busy (see above).
+  - The tuned adapter is saved to the account when training ends. The paid offline test can therefore run afterwards on a rented full-precision GPU, not inside the session. That test needs its own cost estimate and approval first.
+  - The Mac has to stay awake, plugged in, with the lid open, for the whole run.
