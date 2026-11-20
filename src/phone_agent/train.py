@@ -137,30 +137,37 @@ def build_config(trial: Trial, run_dir: Path, dataset: Path):
     )
 
 
-_STEP_LINE = re.compile(r"^(\S+ \S+) .*Step (\d+)/(\d+) \| Loss: ([\d.]+)")
+# The log prints rounded losses, sometimes "-0.0000"; only its timestamps are used.
+_STEP_LINE = re.compile(r"^(\S+ \S+) .*Step (\d+)/\d+ \| Loss: ")
 
 
 def summarize(run_dir: Path, trial_name: str, trial: Trial, wall_s: float) -> dict:
-    """Loss curve and speed from the run's log. Speed is in rows: the recipe's token
-    counter skips image tokens (~987 of ~1,400 per row), so it would understate."""
-    steps = []
+    """Loss curve (exact values from metrics.jsonl) and speed (log timestamps).
+
+    Speed is in rows, not tokens: the recipe's token counter skips image tokens
+    (~987 of ~1,400 per row), so a token rate would understate the work.
+    """
+    loss_at = {}
+    for line in (run_dir / "metrics.jsonl").read_text().splitlines():
+        rec = json.loads(line) if line.strip() else {}
+        if "train/ce_loss" in rec:
+            loss_at[rec["step"]] = rec["train/ce_loss"]
+    time_at = {}
     for line in (run_dir / "train.log").read_text().splitlines():
         if m := _STEP_LINE.match(line):
-            t = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S,%f").timestamp()
-            steps.append((int(m.group(2)), t, float(m.group(4))))
-    steps.sort()
+            time_at[int(m.group(2))] = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S,%f").timestamp()
     out: dict = {"trial": trial_name, "rows": trial.rows, "epochs": trial.epochs, "batch_size": trial.batch_size,
-                 "steps": len(steps), "wall_minutes": round(wall_s / 60, 1)}
-    if not steps:
+                 "steps": len(loss_at), "wall_minutes": round(wall_s / 60, 1)}
+    if not loss_at:
         return out
-    losses = [loss for _, _, loss in steps]
+    losses = [max(0.0, loss_at[s]) for s in sorted(loss_at)]  # tiny negatives are float noise
     per_epoch = -(-trial.rows // trial.batch_size)
     epoch_means = [round(statistics.mean(losses[i : i + per_epoch]), 4) for i in range(0, len(losses), per_epoch)]
-    out.update(first_loss=losses[0], last_loss=losses[-1], epoch_mean_loss=epoch_means)
-    if len(steps) >= 4:
-        # Skip the first steps: they include start-up and the pipeline filling.
-        tail = steps[len(steps) // 4 :]
-        sec_per_step = (tail[-1][1] - tail[0][1]) / (len(tail) - 1)
+    out.update(first_loss=round(losses[0], 4), last_loss=round(losses[-1], 4), epoch_mean_loss=epoch_means)
+    if len(time_at) >= 2:
+        # From step 1 to the last step: excludes start-up, includes the shared pool's ups and downs.
+        first, last = min(time_at), max(time_at)
+        sec_per_step = (time_at[last] - time_at[first]) / (last - first)
         rows_per_s = trial.batch_size / sec_per_step
         out.update(sec_per_step=round(sec_per_step, 2), rows_per_sec=round(rows_per_s, 2))
         if trial_name == "speed":

@@ -85,7 +85,20 @@ Train on 32 rows (a mix of every action type) over and over until the model memo
 - **What it doesn't check:** whether the model looks at the screenshot. With only 32 rows, the goal and past actions are enough to tell rows apart.
 - **Pass rule (set before the run):** the average loss over the last pass is below 0.1.
 
-Result: *pending*
+**Result: PASSED.** Ran 13:10–13:29 on 2026-11-20: 100 steps in 18.6 minutes, at no cost.
+
+| Step | 1 | 5 | 20 | 40 | 60–90 (typical) | last pass (97–100) average |
+|---|---|---|---|---|---|---|
+| Loss | 1.44 | 0.15 | 0.056 | 0.0007 | about 0.0000003 | **0.044** |
+
+- **The loss fell from 1.44 to almost zero, so the model memorized all 32 answers.** In plain terms: at the start the model gave each correct answer token about a 24% chance. By step 40 it was above 99.9%.
+- **Late spikes.** After the loss reached about zero, a few single steps jumped back up: step 36 (0.16), 91 (0.11), 97 (0.05) and 100 (0.12). Each time the next step was back near zero.
+  - **Cause:** the optimizer (Adam) sizes each update by how big recent corrections have been. Once the answers are perfect, corrections become tiny: the gradient size was 0.0005 at step 80. An ordinary small correction then gets blown up into an oversized step, and the step after fixes it.
+  - **Effect on the full run:** none expected. It only happens near zero loss on data seen over and over. The full run sees each row once, and its learning rate shrinks toward the end.
+- **Gradient clipping was active on almost every early step.** Gradient sizes were 50–85 in the first steps, far above the 1.0 cap. Adam rescales updates anyway, so this changes little, but the cap is acting as a constant rescale, not a rare safety guard.
+- **Speed:** 11 seconds per step of 8 rows on average, ranging from 3 to 22 seconds. The training machines are shared with other users, so speed varies.
+- **Clean-up:** the training session closed when the run ended; the session check found nothing open afterwards.
+- **Fix made:** the first summary marked this run "failed" by mistake. Its log parser skipped 3 steps the log printed as "-0.0000" (rounding noise), which shifted the per-pass averages. It now reads exact losses from the metrics file, and a test covers this case.
 
 ### Trial B: speed test
 

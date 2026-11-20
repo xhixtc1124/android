@@ -41,3 +41,20 @@ def test_overfit_rows_cover_every_action():
 def test_speed_rows_are_seeded():
     trial = dataclasses.replace(TRIALS["speed"], rows=50)
     assert select_rows(_records(), trial) == select_rows(_records(), trial)
+
+
+def test_summarize_reads_every_step(tmp_path):
+    # The log rounds tiny losses to "-0.0000"; the summary must still count that step.
+    from phone_agent.train import summarize
+
+    losses = [1.0, 0.5, -1e-9, 0.2]
+    (tmp_path / "metrics.jsonl").write_text(
+        "".join(json.dumps({"step": i + 1, "train/ce_loss": v}) + "\n" for i, v in enumerate(losses))
+    )
+    (tmp_path / "train.log").write_text(
+        "".join(f"2026-11-20 13:00:{10 * i:02d},000 INFO x Step {i + 1}/4 | Loss: {v:.4f} | PPL\n" for i, v in enumerate(losses))
+    )
+    trial = dataclasses.replace(TRIALS["overfit"], rows=4, batch_size=2, epochs=2)
+    s = summarize(tmp_path, "overfit", trial, 60)
+    assert s["steps"] == 4 and s["epoch_mean_loss"] == [0.75, 0.1]
+    assert s["sec_per_step"] == 10 and s["passed"] is False
