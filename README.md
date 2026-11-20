@@ -26,4 +26,4 @@ Each step becomes: screenshot + goal + earlier actions → the human's next acti
 
 ## Status
 
-Data converter done. Training next.
+Data converter done; both free training trials passed (see history.md). Full training run next.

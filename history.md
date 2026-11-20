@@ -105,4 +105,25 @@ Train on 32 rows (a mix of every action type) over and over until the model memo
 1,000 random train rows, one pass, with the full-run settings.
 - **What it checks:** how fast Fireworks trains, which gives the real time estimate for the full run. Also that the loss starts falling and that saving a checkpoint works.
 
-Result: *pending*
+**Result: done, and everything worked.** Ran 13:30–13:36 on 2026-11-20: 32 steps in 5.0 minutes, including start-up and the checkpoint save, at no cost.
+
+- **Speed: 7.9 seconds per step of 32 rows, about 4 rows per second.** Most steps took 2–5 seconds, with a slow one of about 20 seconds every few steps. A step took no longer than in Trial A, even with 4× the rows, so bigger batches use the machines better.
+- **Full-run estimate: about 6–9 hours** for all 88,308 rows (about 2,760 steps). That's 6 hours at this pace and 8.5 hours at Trial A's slower pace, and longer if the shared machines are busy.
+- **Loss: 1.22 at step 1, 0.25 by step 4, then 0.2–0.3 for the rest** (0.19 at the last step).
+  - The quick early drop is the model learning the answer format.
+  - What remains is the hard part: which element to tap and exactly where. That needs far more than 1,000 rows.
+  - Every row here was seen only once, so this is an honest learning signal, but it is not a test score.
+- **Checkpoint saving works:** the resumable copy took 5 seconds and the testable copy 6 seconds (about 33 seconds in all).
+- **No rows dropped** for being too long.
+- **The learning-rate schedule ran as planned:** 1e-4 at the start, down to 1e-5 at the last step.
+- **Gradient sizes were 90–4,320, so the 1.0 cap rescaled every step.** One odd batch at step 6 reached 4,320. Large numbers are expected because the trainer adds the gradient up over all ~600 answer tokens in a batch. The cap stays: with Adam it mainly stops one odd batch like step 6 from swamping the next updates.
+- **Clean-up:** the session closed when the run ended; the session check found nothing open.
+
+## Where things stand (2026-11-20)
+
+- Both free trials passed. The setup is ready for the full run.
+- **Training tokens used by the trials:** about 2.5 million, all free. **Money spent:** $0.
+- **Next: the full training run** (about 6–9 hours, free, must start before Dec 1 Pacific).
+  - Unlike the trials, it must **keep its session open** at the end. The tuned model can only be tested while its session is open.
+  - So the paid offline test should follow right after. That test needs its own cost estimate and approval first.
+  - The Mac has to stay awake and plugged in for the whole run.
