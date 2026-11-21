@@ -143,13 +143,26 @@ Progress so far:
   - **Cause:** Fireworks' shared training machines. The Mac was 85% idle, the training processes sat at 0% CPU waiting for replies, upload was near zero between steps, and there were no retry or capacity errors.
   - **Effect:** at this pace the run takes about 24–33 hours instead of 6–9. It is still free, because the offer counts the start date.
 - **Mac memory:** swap is nearly full (about 13 of 14 GB), mostly from browser and editor windows open for days. The training processes use about 0.2 GB.
+- **Power:** the Mac switched to battery three times during the afternoon. The run kept going each time.
 
-Result: *in progress*
+**Result: stopped early on purpose at step 386 of 2,760 (14%), at 17:59.** The laptop had to go offline.
+
+- **Why not pause:** a true pause isn't possible. A stopped run can only resume while its session is alive, and Fireworks says the session expires soon after the run stops. Being offline for hours meant the checkpoints (last one at step 272) would no longer load.
+- **Choice:** stop cleanly and **restart from step 0** later with `python main.py train full`. It is still free if started before 2026-12-01 Pacific. Nothing besides the 3 h 51 min of training is lost; the data and code are ready.
+- **No errors** in 386 steps: 0 crashes, 0 retries, 0 rows skipped. The only warning was Hugging Face noting that the cached tokenizer was downloaded without logging in.
+- **Pace:** 36 seconds per step on average. At that pace a full run takes about 27 hours, so the restart needs about a day of Wi-Fi and power.
+- **Loss over the 386 steps,** in ten equal slices: 0.49, 0.24, 0.22, 0.21, 0.22, 0.23, 0.24, 0.25, 0.24, 0.22.
+  - The loss fell fast in the first ~40 steps as the model learned the answer format, then stayed flat around 0.22.
+  - **Possible reason:** most of the ~19 trained tokens per answer are format tokens the model gets right early, so slower gains on the hard tokens (which element, exact coordinates) barely move the average. Batch-to-batch noise hides them further.
+  - **What will decide it:** whether the model actually got better is decided by the held-out test, not this curve.
 
 ## Where things stand (2026-11-20)
 
 - Both free trials passed. The setup is ready for the full run.
 - **Training tokens used by the trials:** about 2.5 million, all free. **Money spent:** $0.
-- **The full training run started at 14:08.** It's free, and slower than planned because the shared machines are busy (see above).
-  - The tuned adapter is saved to the account when training ends. The paid offline test can therefore run afterwards on a rented full-precision GPU, not inside the session. That test needs its own cost estimate and approval first.
+- **The first full training run was stopped at step 386** because the laptop had to go offline (see above).
+- **Next: restart the full run from step 0** when there's about a day of Wi-Fi and power, before Dec 1.
+  - Command: `caffeinate -is python main.py train full`.
+  - Before it starts, check that the old session has expired (the launcher does this automatically).
   - The Mac has to stay awake, plugged in, with the lid open, for the whole run.
+- **After training:** the tuned adapter is saved to the account when training ends. The paid offline test can therefore run afterwards on a rented full-precision GPU. That test needs its own cost estimate and approval first.
