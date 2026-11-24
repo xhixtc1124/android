@@ -156,13 +156,30 @@ Progress so far:
   - **Possible reason:** most of the ~19 trained tokens per answer are format tokens the model gets right early, so slower gains on the hard tokens (which element, exact coordinates) barely move the average. Batch-to-batch noise hides them further.
   - **What will decide it:** whether the model actually got better is decided by the held-out test, not this curve.
 
-## Where things stand (2026-11-20)
+## 2026-11-23: Full training run #2 (free)
 
-- Both free trials passed. The setup is ready for the full run.
-- **Training tokens used by the trials:** about 2.5 million, all free. **Money spent:** $0.
-- **The first full training run was stopped at step 386** because the laptop had to go offline (see above).
-- **Next: restart the full run from step 0** when there's about a day of Wi-Fi and power, before Dec 1.
-  - Command: `caffeinate -is python main.py train full`.
-  - Before it starts, check that the old session has expired (the launcher does this automatically).
-  - The Mac has to stay awake, plugged in, with the lid open, for the whole run.
+Restarted from step 0 at 15:30 Pacific on 2026-11-23 with the same settings and data. The model will be saved as `glimmer-android-sft-20261123-1530`.
+
+- **Pre-flight checks before launch:**
+  - no open Fireworks sessions (run #1's had expired);
+  - training file had all 88,308 rows;
+  - 57 tests pass;
+  - 251 GB disk free;
+  - Fireworks API reachable;
+  - well before the free deadline.
+  - Launch was held until the Mac was really on AC power. The first check found it on battery, although it was meant to be plugged in.
+- **Same start as run #1:** step 1 loss was 1.2806, the same as run #1, because the seed and first batch are the same.
+- **Events so far:**
+  - **Power:** the charger dropped out once (16:18) and came back.
+  - **Lid:** it was closed by accident and the Mac slept for 13 seconds (16:19:35–16:19:48). Training carried on; the next step finished at 16:20:31.
+  - **Watcher fix:** the background watcher had silently stopped reading new log lines after a restructure (it missed step 100). Its power and process checks still worked. It was replaced with a simpler loop that re-reads new lines every 30 seconds, and was tested on the real log.
+- **Pace:** 35–46 seconds per step, so the run should end on Wednesday morning (Nov 25), Pacific.
+
+Result: *in progress* (step 109 at 17:00, loss about 0.22–0.25, no errors)
+
+## Where things stand (2026-11-23)
+
+- Both free trials passed. Full run #1 was stopped at step 386 when the laptop went offline.
+- **Full run #2 is running** (started 15:30 Pacific on Nov 23). The Mac must stay awake, plugged in, with the lid open until it ends.
+- **Money spent:** $0. All training so far falls under the free offer.
 - **After training:** the tuned adapter is saved to the account when training ends. The paid offline test can therefore run afterwards on a rented full-precision GPU. That test needs its own cost estimate and approval first.
