@@ -173,9 +173,25 @@ Restarted from step 0 at 15:30 Pacific on 2026-11-23 with the same settings and 
   - **Power:** the charger dropped out once (16:18) and came back.
   - **Lid:** it was closed by accident and the Mac slept for 13 seconds (16:19:35–16:19:48). Training carried on; the next step finished at 16:20:31.
   - **Watcher fix:** the background watcher had silently stopped reading new log lines after a restructure (it missed step 100). Its power and process checks still worked. It was replaced with a simpler loop that re-reads new lines every 30 seconds, and was tested on the real log.
-- **Pace:** 35–46 seconds per step, so the run should end on Wednesday morning (Nov 25), Pacific.
+- **Heartbeat blip (01:25 on Nov 24):** the session heartbeat failed for about 2 minutes ("request timed out").
+  - The SDK pings Fireworks every 10 seconds to keep the session alive, and Fireworks ends a session whose heartbeats keep failing.
+  - It recovered on its own after one warning, and training steps never stopped. The watcher now flags every warning explicitly.
 
-Result: *in progress* (step 109 at 17:00, loss about 0.22–0.25, no errors)
+Progress:
+
+| Time (Pacific) | Step | Loss | Note |
+|---|---|---|---|
+| Mon 15:31 | 1 | 1.28 | |
+| Mon 17:32 | 138 | 0.25 | first checkpoint |
+| Mon 21:35 | 400 | 0.16 | past run #1's stopping point |
+| Tue 00:10 | 563 | 0.21 | checkpoint |
+| Tue 04:32 | 860 | 0.21 | checkpoint (6th) |
+| Tue 06:38 | 1,000 | 0.20 | 36% done |
+
+- **Pace:** about 50–55 seconds per step overnight, so the run should end around Wednesday morning (Nov 25), Pacific.
+- **Loss:** individual batches range from 0.12 to 0.27. It is still mostly flat after the early drop, as in run #1.
+
+Result: *in progress* (step 1,000 at Tue 06:38; no errors; one recovered heartbeat warning)
 
 ## Where things stand (2026-11-23)
 
