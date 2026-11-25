@@ -26,4 +26,4 @@ Each step becomes: screenshot + goal + earlier actions → the human's next acti
 
 ## Status
 
-Data converter done; both free training trials passed (see history.md). Full training run next.
+Training done: LoRA adapter for Glimmer 30B trained on all 88,308 rows (see history.md). Offline test next.

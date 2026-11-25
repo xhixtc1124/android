@@ -187,15 +187,38 @@ Progress:
 | Tue 00:10 | 563 | 0.21 | checkpoint |
 | Tue 04:32 | 860 | 0.21 | checkpoint (6th) |
 | Tue 06:38 | 1,000 | 0.20 | 36% done |
+| Tue 15:13 | 1,600 | 0.16 | |
+| Tue 22:10 | 2,000 | 0.14 | |
+| Wed 04:47 | 2,400 | 0.11 | |
+| Wed 10:32 | **2,760** | 0.12 | all steps done |
 
-- **Pace:** about 50–55 seconds per step overnight, so the run should end around Wednesday morning (Nov 25), Pacific.
-- **Loss:** individual batches range from 0.12 to 0.27. It is still mostly flat after the early drop, as in run #1.
+**Result: DONE.** All 2,760 steps finished at 10:32 Pacific on Wed Nov 25, and the tuned model was saved to the account at 10:35. It cost $0.
 
-Result: *in progress* (step 1,000 at Tue 06:38; no errors; one recovered heartbeat warning)
+- **The tuned model:** `glimmer-android-sft-20261123-1530` in the account.
+  - Fireworks reports it READY and private.
+  - It is a LoRA add-on (rank 16) for Muse Glimmer 30B, covering the attention and MLP layers (`q/k/v/o_proj`, `gate/up/down_proj`).
+  - This was checked with a read-only lookup after training.
+- **Time:** 43.1 hours (2,584 minutes), averaging 56 seconds per step. Speed varied from about 28 to 140 seconds per step depending on how busy Fireworks' shared machines were.
+- **Clean run:**
+  - 0 crashes and 0 rows skipped.
+  - 20 checkpoints saved (19 periodic plus the final one).
+  - 2 warnings: the startup Hugging Face notice, and one heartbeat blip at 01:25 on Nov 24 that recovered on its own.
+  - The Mac slept once for 13 seconds (lid) and switched to battery a few times; none of this affected training.
+- **Loss over the whole run** (average per tenth of the run):
 
-## Where things stand (2026-11-23)
+  | Tenth | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | Loss | 0.259 | 0.207 | 0.191 | 0.186 | 0.173 | 0.163 | 0.156 | 0.153 | 0.146 | 0.140 |
 
-- Both free trials passed. Full run #1 was stopped at step 386 when the laptop went offline.
-- **Full run #2 is running** (started 15:30 Pacific on Nov 23). The Mac must stay awake, plugged in, with the lid open until it ends.
-- **Money spent:** $0. All training so far falls under the free offer.
-- **After training:** the tuned adapter is saved to the account when training ends. The paid offline test can therefore run afterwards on a rented full-precision GPU. That test needs its own cost estimate and approval first.
+  - The loss kept falling for the whole run, from 1.28 at step 1 to about 0.14 in the last tenth. The run-wide average was 0.177.
+  - Run #1 only reached step 386, which is why it looked flat.
+  - This is training loss on rows seen once, so it is a real learning signal, but it is **not a test score**. Whether the model got better at the task is decided by the held-out test (base vs tuned, including unseen apps).
+- **Session:** the training session was left open on purpose, so a crash could have resumed. It will expire on its own; it costs nothing while idle, but holds the account's Glimmer training slot until it does.
+
+## Where things stand (2026-11-25)
+
+- **Training is finished.** The tuned adapter `glimmer-android-sft-20261123-1530` is in the account.
+- **Money spent:** $0. All training fell under the free offer.
+- **Next: the offline test (paid).** Base vs tuned step accuracy on the held-out AndroidControl test split (9,987 rows; 8,444 human steps), including unseen apps, with a paired McNemar test. It needs:
+  1. the test code: running both models, parsing answers, and scoring taps against the target boxes;
+  2. a cost estimate on a rented full-precision (BF16) GPU and the user's approval before any spending.
